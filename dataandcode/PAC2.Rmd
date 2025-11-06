@@ -1,0 +1,182 @@
+---
+title: "PAC 2 Visualitzacio de dades"
+author: "Adrià"
+date: "2025-11-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, results="hide", message=FALSE, warning=FALSE}
+# Importem les llibreries necesaries
+
+library(readxl)
+library(ggplot2)
+library(ggvenn)
+library(ggrain)
+library(dplyr)
+library(lubridate)
+library(spiralize)
+library(grid)
+library(viridis)
+
+```
+
+
+# Venn Diagram
+
+## Descripció:
+
+Els diagrames de Venn van començar a sorgir l’any 1880, creats per John Venn. S’utilitzaven per ensenyar teoria introductòria, a més d’il·lustrar les relacions entre diferents conjunts, vectors, probabilitats, etc.
+
+Un dels avantatges dels diagrames de Venn és que, si vols veure una correlació entre un nombre reduït d’atributs, és molt fàcil de comprendre i de visualitzar. En canvi, si hi ha més de quatre atributs, ja comença a ser confús i menys comprensible. Per això, es sol recomanar de fer-los amb un màxim de tres atributs.
+
+Alguns exemples de dades que es poden utilitzar serien:
+
+-   Preferències de gèneres musicals d’un grup de persones.
+
+-   Productes que compren els clients en una botiga.
+
+-   Característiques compartides entre animals, com mamífers, que tenen plomes o que poden volar.
+
+
+```{r}
+
+vendi_df <- read_excel("GSE75192_counts_RPKMs.xls")
+
+# columnes per teixit
+liver_cols <- grep("_liver$", colnames(vendi_df), value = TRUE)
+skin_cols <- grep("_skin$", colnames(vendi_df), value = TRUE)
+brain_cols <- grep("_brain$", colnames(vendi_df), value = TRUE)
+
+# gen present si expressió > 0 en qualsevol mostra del teixit
+liver_genes <- rownames(vendi_df)[apply(vendi_df[, liver_cols], 1, function(x) any(x > 0))]
+skin_genes <- rownames(vendi_df)[apply(vendi_df[, skin_cols], 1, function(x) any(x > 0))]
+brain_genes <- rownames(vendi_df)[apply(vendi_df[, brain_cols], 1, function(x) any(x > 0))]
+
+venn_list <- list(
+  liver = liver_genes,
+  skin = skin_genes,
+  brain = brain_genes
+)
+
+ggvenn(
+  venn_list,
+  fill_color = c("red", "blue", "purple"),
+  stroke_size = 0.5,
+  set_name_size = 3
+)
+
+
+
+```
+
+# Rain cloud Plots
+
+## Descripció:
+
+Els violin plots van començar a aparèixer el 2019, creats per Micah Allen. S'utilitzen per combinar en un sol gràfic la densitat, els valors individuals i estadístics resumits, a més de permetre comparar diferents grups.
+
+Alguns factors que aporten avantatge respecte a altres tipus de gràfics són la facilitat per detectar outliers i una millor interpretació dels boxplots. Com a desavantatges, requereixen més espai visual i poden resultar més complexos d'entendre en una única ullada.
+
+S'utilitzen amb dades quantitatives contínues i numèriques agrupades en categories. Alguns exemples serien:
+
+- Valors de temps de reacció en dos grups experimentals
+
+- Mesures fisiològiques com la freqüència cardíaca o l'activitat neuronal
+
+Nivells d'un biomarcador abans i després d'un tractament
+
+Àrees d'aplicació habituals:
+
+- Neurociència
+
+- Psicologia i comportament
+
+- Biomedicina i recerca clínica
+
+
+```{r}
+
+ggplot(iris, aes(Species, Sepal.Length, fill = Species)) + 
+	geom_rain() +
+  coord_flip()
+
+
+```
+
+
+
+
+
+# Spiral Plot
+
+## Descripció:
+
+El concepte de spiral plot va començar a sorgir l'any 2000, amb Zuguang Gu com a autor principal. Alguns avantatges destacats són la capacitat de visualitzar sèries temporals llargues de manera compacta i contínua, la facilitat per detectar patrons periòdics com cicles mensuals o anuals, i l'eficiència en l'ús de l'espai visual sense perdre llegibilitat. A més, tenen un fort atractiu visual, útil en contextos de presentació o divulgació.
+
+Com a inconvenients, poden resultar més difícils d'interpretar per a persones no familiaritzades amb aquest format, ja que combinen escales radials i angulars. També requereixen decisions de disseny específiques que poden complicar la comparació entre visualitzacions.
+
+S'utilitzen principalment amb dades quantitatives mesurades al llarg del temps, especialment quan hi ha un component cíclic com mesos o anys, o quan es volen comparar categories al llarg de diferents períodes. No són adequats per a dades sense dimensió temporal clara.
+
+Exemples comuns inclouen:
+
+- Representació de temperatures globals des de 1850 per visualitzar patrons anuals
+
+- Dades de consum energètic amb cada volta representant un any
+
+Àmbits d'aplicació habituals:
+
+- Ciència de dades i recerca en climatologia, economia o salut pública
+
+- Presentacions i articles que busquen un efecte visual notable
+
+```{r}
+
+df <- read.csv("CLVMNACSCAB1GQES.csv")
+
+df <- df %>%
+  mutate(
+    date = as.Date(observation_date),
+    year = year(date),
+    id = row_number(),
+    value_norm = scales::rescale(CLVMNACSCAB1GQES) # normalitzar 0 - 1
+  )
+
+
+years <- sort(unique(df$year))
+
+year_colors <- setNames(
+  viridis(length(years)),   # paleta en gradient
+  years
+)
+
+df <- df %>%
+  mutate(col = year_colors[as.character(year)])
+
+spiral_initialize(xlim = c(0, max(df$id)))
+
+spiral_track(height = 0.5)
+
+spiral_bars(
+  pos = df$id,
+  value = df$value_norm,
+  gp = gpar(fill = df$col, col = NA)
+)
+
+df_year_start <- df %>%
+  group_by(year) %>%
+  slice(1) %>%
+  ungroup()
+
+
+spiral_axis(
+  major_at = df_year_start$id,
+  labels = df_year_start$year,
+  labels_gp = gpar(cex = 0.6)
+)
+
+
+```
